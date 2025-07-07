@@ -2,8 +2,8 @@ import numpy as np
 import random
 
 # Define the gridworld environment
-class Env:
-    def __init__(self):
+class DuckietownEnv:
+    def __init__(self, nS, nA, P):
         self.grid = np.array([
             [0, 0, 0],  # Wall with reward -1
             [0, 0, 0],
@@ -27,8 +27,6 @@ class Env:
             next_state[1] = min(3, state[1] + 1)
         elif action == 2:  # Move left
             next_state[0] = min(3, state[1] - 1)
-        elif action == 3:  # Lane Following
-            next_state[0] = min(3, state[0] - 1)
         return tuple(next_state)
 
     def step(self, action):
