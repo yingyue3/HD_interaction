@@ -5,14 +5,17 @@ import random
 class DuckietownEnv:
     def __init__(self, nS, nA, P):
         self.grid = np.array([
-            [0, 0, 0],  # Wall with reward -1
-            [0, 0, 0],
-            [0, 0, 0]  # Start at (3, 0)
+            [0, 1, -1, -1],  
+            [0, -1, 1, -1],
+            [0, -1, -1, 1]
         ])
-        self.start_state = (2, 1)
+        start_state = random.randint(0, 2)
+        self.start_state = (start_state, 0)
         self.state = self.start_state
 
     def reset(self):
+        start_state = random.randint(0, 2)
+        self.start_state = (start_state, 0)
         self.state = self.start_state
         return self.state
 
@@ -22,11 +25,11 @@ class DuckietownEnv:
     def get_next_state(self, state, action):
         next_state = list(state)
         if action == 0:  # Move forward
-            next_state[0] = max(0, state[0] - 1)
+            next_state[0] = max(0, state[1] + 1)
         elif action == 1:  # Move right
-            next_state[1] = min(3, state[1] + 1)
+            next_state[1] = min(3, state[1] + 2)
         elif action == 2:  # Move left
-            next_state[0] = min(3, state[1] - 1)
+            next_state[0] = min(3, state[1] + 3)
         return tuple(next_state)
 
     def step(self, action):

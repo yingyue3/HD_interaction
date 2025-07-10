@@ -11,10 +11,17 @@ import cv2
 from cv_bridge import CvBridge
 import numpy as np
 from duckietown_msgs.msg import WheelsCmdStamped, Twist2DStamped, LEDPattern
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, Header, ColorRGBA, Int32, String
+import dt_apriltags as aptag
+from geometry_msgs.msg import Point32
 from duckietown_msgs.msg import Twist2DStamped
+from select import select
+
+from packages.my_package.learning import DukietownEnv
 
 import sys, tty, termios
+
+env = DukietownEnv
 
 ROAD_MASK = [(20, 60, 0), (50, 255, 255)]
 DEBUG = True
@@ -103,6 +110,8 @@ class LaneControllerNode(DTROS):
         
         # Velocity publisher
         self.vel_pub = rospy.Publisher(f'/{self._vehicle_name}/car_cmd_switch_node/cmd', Twist2DStamped, queue_size=1)
+
+        self.tag_id = 0
         
         # Lane subscribers
         # self.yellow_sub = rospy.Subscriber('~/yellow_lane', Float32MultiArray, self.yellow_lane_callback, queue_size=1)
@@ -128,6 +137,36 @@ class LaneControllerNode(DTROS):
         dst = dst[y:y+h, x:x+w]
 
         self.undisorted_image = self.image_preprocess(dst)
+        self.apriltag_image = self.apriltag_image_process(self.undisorted_image)
+    
+    def apriltag_image_process(self, img):
+        h, w, _ = img.shape
+        resized_image = img[h//4: , w//4:-w//4, :]
+
+        image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY)
+        return image
+    
+    def detect_tag(self):
+        detector = aptag.Detector(families="tag36h11")
+        results = detector.detect(self.apriltag_image)
+
+        if results:
+
+            def area(r):
+                # Use corners to compute polygon area
+                (ptA, ptB, ptC, ptD) = r.corners
+                return 0.5 * abs(
+                    ptA[0]*ptB[1] + ptB[0]*ptC[1] + ptC[0]*ptD[1] + ptD[0]*ptA[1]
+                    - ptB[0]*ptA[1] - ptC[0]*ptB[1] - ptD[0]*ptC[1] - ptA[0]*ptD[1]
+                )
+
+            largest_tag = max(results, key=area)
+
+            tag_id = largest_tag.tag_id
+            # rospy.loginfo(tag_id)
+            return tag_id
+        else:
+            return None
 
     
     def image_preprocess(self, img):
@@ -145,15 +184,31 @@ class LaneControllerNode(DTROS):
         message = Twist2DStamped(v=v, omega=omega)
         self.vel_pub.publish(message)
     
+    def publish_leds(self, x):      
+        msg = LEDPattern()
+        msg.header = Header()
+        msg.header.stamp = rospy.Time.now()
+        color_msg = ColorRGBA()
+        color_msg.r, color_msg.g, color_msg.b, color_msg.a = x
+
+
+            # Set LED colors
+        msg.rgb_vals = [color_msg] * 5
+        self.led_pub.publish(msg) 
+    
     def get_char_unix(self):
-        fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd)
+        tty.setraw(sys.stdin.fileno())
+        old_settings = termios.tcgetattr(sys.stdin)
         try:
-            tty.setraw(sys.stdin.fileno())
-            ch = sys.stdin.read(1)
+            rlist, _, _ = select([sys.stdin], [], [], 1.0/3)
+            if rlist:
+                key = sys.stdin.read(1)
+            else:
+                key = ''
         finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        return ch
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+        # rospy.loginfo("run")
+        return key
     
     def wait_for_subscriber(self):
         i = 0
@@ -167,7 +222,7 @@ class LaneControllerNode(DTROS):
             raise Exception("Got shutdown request before subscribers connected")
     
     def keyboard_control(self):
-        key = self.get_char_unix()
+        key = self.get_char_unix() 
         if key == "w":
             self.publish_twisted(self.velocity, 0)
         elif key == "a":
@@ -178,11 +233,9 @@ class LaneControllerNode(DTROS):
             self.publish_twisted(-self.velocity, 0)
         else:
             if key == "\x03":
-                rospy.loginfo("Exit Control Mode")
                 return "break"
             else:
-                self.publish_twisted(0,0)
-        rospy.loginfo(key)        
+                self.publish_twisted(0,0)      
         return None
 
 
@@ -191,11 +244,27 @@ class LaneControllerNode(DTROS):
         # message = Twist2DStamped(v=v, omega=omega)
 
         self.wait_for_subscriber()
-        while(1):
+        while(not rospy.is_shutdown()):
+            
             flag = self.keyboard_control()
+            prev_tag = self.tag_id
+            self.tag_id = self.detect_tag()
+            # rospy.loginfo(self.tag_id)
+            if self.tag_id == 35:
+                if prev_tag == 35:
+                    continue
+                self.publish_leds((0.0, 1.0, 0.0, 0.3))
+            elif self.tag_id == 77 or self.tag_id == 78 or self.tag_id == 91:
+                rospy.loginfo("Reach Endpoint")
+                break
+            elif prev_tag != self.tag_id:
+                rospy.loginfo("Regular")
+                self.publish_leds((1.0, 1.0, 1.0, 1.0))
             if flag == "break":
+                # rospy.loginfo("Exit Control Mode")
                 break
         self.stop()
+        rospy.signal_shutdown("Exiting Control Mode")
 
 
 

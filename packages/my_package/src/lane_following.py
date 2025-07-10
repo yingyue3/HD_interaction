@@ -126,6 +126,15 @@ class LaneControllerNode(DTROS):
         dst = dst[y:y+h, x:x+w]
 
         self.undisorted_image = self.image_preprocess(dst)
+        self.apriltag_image = self.apriltag_image_process(self.undisorted_image)
+    
+    def apriltag_image_process(self, img):
+        h, w, _ = img.shape
+        resized_image = img[: , w//4:, :]
+
+        image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY)
+        return image
+        
 
     def calc_error(self, imageFrame):
         if imageFrame is None:
