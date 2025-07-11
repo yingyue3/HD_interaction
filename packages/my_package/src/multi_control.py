@@ -17,11 +17,7 @@ from geometry_msgs.msg import Point32
 from duckietown_msgs.msg import Twist2DStamped
 from select import select
 
-from packages.my_package.learning import DukietownEnv
-
 import sys, tty, termios
-
-env = DukietownEnv
 
 ROAD_MASK = [(20, 60, 0), (50, 255, 255)]
 DEBUG = True

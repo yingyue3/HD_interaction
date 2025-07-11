@@ -10,7 +10,5 @@ catkin_package()
 
 catkin_install_python(PROGRAMS
   src/multi_control.py
-  learning/DuckietownEnv.py
-  learning/Q_learning.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

@@ -1,9 +1,11 @@
+#!/usr/bin/env python3
+
 import numpy as np
 import random
 
 # Define the gridworld environment
 class DuckietownEnv:
-    def __init__(self, nS, nA, P):
+    def __init__(self):
         self.grid = np.array([
             [0, 1, -1, -1],  
             [0, -1, 1, -1],
@@ -22,18 +24,18 @@ class DuckietownEnv:
     def is_terminal(self, state):
         return self.grid[state] == 1 or self.grid[state] == -1
 
-    def get_next_state(self, state, action):
+    def get_next_state(self, state, tagid):
         next_state = list(state)
-        if action == 0:  # Move forward
-            next_state[0] = max(0, state[1] + 1)
-        elif action == 1:  # Move right
+        if tagid == 0:  # Move forward
+            next_state[1] = max(3, state[1] + 1)
+        elif tagid == 1:  # Move right
             next_state[1] = min(3, state[1] + 2)
-        elif action == 2:  # Move left
-            next_state[0] = min(3, state[1] + 3)
+        elif tagid == 2:  # Move left
+            next_state[1] = min(3, state[1] + 3)
         return tuple(next_state)
 
-    def step(self, action):
-        next_state = self.get_next_state(self.state, action)
+    def step(self, tagid):
+        next_state = self.get_next_state(self.state, tagid)
         reward = self.grid[next_state]
         self.state = next_state
         done = self.is_terminal(next_state)
