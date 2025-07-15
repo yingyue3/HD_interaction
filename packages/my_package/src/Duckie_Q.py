@@ -30,7 +30,7 @@ DEBUG = True
 ENGLISH = False
 SAFETY = False
 AUSSIE = False
-MODEL_PATH = "checkpoint-0714.pkl"
+MODEL_PATH = "checkpoint-0715-test.pkl"
 
 def make_epsilon_greedy_policy(Q, epsilon, nA):
     """
@@ -77,6 +77,7 @@ class QAgent:
         start_state = random.randint(0, 2)
         self.start_state = (start_state, 0)
         self.state = self.start_state
+        self.action = None
       
     def load_model(self, path):
       with open(path, 'rb') as f:
@@ -86,9 +87,9 @@ class QAgent:
       self.discount_factor = data["epsilon"]
       print(self.Q)
     
-    def save_model(self, path):
+    def save_model(self, path, iteration):
       checkpoint = {
-        'episode': 25,
+        'episode': iteration,
         'epsilon': self.discount_factor,
         'q_table': self.Q  # Or model state_dict if using neural networks
       }
@@ -113,41 +114,42 @@ class QAgent:
     def is_terminal(self, state):
         return self.grid[state] == 1 or self.grid[state] == -1
 
-    def get_next_state(self, state, tagid):
+    def tagid_to_state(self, tagid, state = (0,0)):
         next_state = list(state)
-        if tagid == 0:  # Move forward
-            next_state[1] = max(3, state[1] + 1)
-        elif tagid == 1:  # Move right
+        if tagid == 78:  # Move forward
+            next_state[1] = min(3, state[1] + 1)
+        elif tagid == 77:  # Move right
             next_state[1] = min(3, state[1] + 2)
-        elif tagid == 2:  # Move left
+        elif tagid == 91:  # Move left
             next_state[1] = min(3, state[1] + 3)
+        else:
+            next_state = [0, 0]
         return tuple(next_state)
 
     def step(self, tagid):
-        next_state = self.get_next_state(self.state, tagid)
+        next_state = self.tagid_to_state(tagid, self.state)
         reward = self.grid[next_state]
         self.state = next_state
         done = self.is_terminal(next_state)
         return next_state, reward, done
     
-    def episode(self, tagid):
-        state = self.reset()
-        action_probs = self.policy(state)
+    def select_action(self):
+        action_probs = self.policy(self.state)
         action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
+        return action       
+    
+    def update(self, action, tagid):
+        state = self.state
         next_state, reward, done = self.step(tagid)
-
         best_next_action = np.argmax(self.Q[next_state])    
         td_target = reward + self.discount_factor * self.Q[next_state][best_next_action]
         td_delta = td_target - self.Q[state][action]
         self.Q[state][action] += self.alpha * td_delta
+        return reward
 
 class LaneControllerNode(DTROS):
     def __init__(self, node_name):
         super(LaneControllerNode, self).__init__(node_name=node_name, node_type=NodeType.CONTROL)
-
-        self.Q_learning = QAgent(MODEL_PATH)
-        rospy.loginfo(self.Q_learning.Q)
-        self.Q_learning.save_model(MODEL_PATH)
         
         self._vehicle_name = os.environ['VEHICLE_NAME']
 
@@ -228,6 +230,8 @@ class LaneControllerNode(DTROS):
         self.vel_pub = rospy.Publisher(f'/{self._vehicle_name}/car_cmd_switch_node/cmd', Twist2DStamped, queue_size=1)
 
         self.tag_id = 0
+
+        self.Q = QAgent()
         
         # Lane subscribers
         # self.yellow_sub = rospy.Subscriber('~/yellow_lane', Float32MultiArray, self.yellow_lane_callback, queue_size=1)
@@ -312,6 +316,33 @@ class LaneControllerNode(DTROS):
         msg.rgb_vals = [color_msg] * 5
         self.led_pub.publish(msg) 
     
+    def blink_once(self):
+        self.publish_leds((1.0, 1.0, 1.0, 1.0))
+        rospy.sleep(0.2)
+        self.publish_leds((0.0, 0.0, 0.0, 0.0))
+
+    def blink_twice(self):
+        self.publish_leds((1.0, 1.0, 1.0, 1.0))
+        rospy.sleep(0.2)
+        self.publish_leds((0.0, 0.0, 0.0, 0.0))
+        rospy.sleep(0.2)
+        self.publish_leds((1.0, 1.0, 1.0, 1.0))
+        rospy.sleep(0.2)
+        self.publish_leds((0.0, 0.0, 0.0, 0.0))
+    
+    def blink_three(self):
+        self.publish_leds((1.0, 1.0, 1.0, 1.0))
+        rospy.sleep(0.2)
+        self.publish_leds((0.0, 0.0, 0.0, 0.0))
+        rospy.sleep(0.2)
+        self.publish_leds((1.0, 1.0, 1.0, 1.0))
+        rospy.sleep(0.2)
+        self.publish_leds((0.0, 0.0, 0.0, 0.0))
+        rospy.sleep(0.2)
+        self.publish_leds((1.0, 1.0, 1.0, 1.0))
+        rospy.sleep(0.2)
+        self.publish_leds((0.0, 0.0, 0.0, 0.0))
+    
     def get_char_unix(self):
         tty.setraw(sys.stdin.fileno())
         old_settings = termios.tcgetattr(sys.stdin)
@@ -325,6 +356,17 @@ class LaneControllerNode(DTROS):
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
         # rospy.loginfo("run")
         return key
+    
+    def _getch(self):
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return ch
+    
     
     def wait_for_subscriber(self):
         i = 0
@@ -360,6 +402,9 @@ class LaneControllerNode(DTROS):
         # message = Twist2DStamped(v=v, omega=omega)
 
         self.wait_for_subscriber()
+        action_selected = False
+        action = None
+        self.publish_leds((0.0, 0.0, 0.0, 0.0))
         while(not rospy.is_shutdown()):
             
             flag = self.keyboard_control()
@@ -367,25 +412,49 @@ class LaneControllerNode(DTROS):
             self.tag_id = self.detect_tag()
             # rospy.loginfo(self.tag_id)
             if self.tag_id == 35:
-                if prev_tag == 35:
-                    continue
-                self.publish_leds((0.0, 1.0, 0.0, 0.3))
+                if not action_selected:
+                    action_selected = True
+                    self.Q.reset()
+                    action = self.Q.select_action()
+                    if action == 0:
+                        self.blink_once()
+                    elif action == 1:
+                        self.blink_twice()
+                    elif action == 2:
+                        self.blink_three()
+                    rospy.loginfo(f"Action {action} is taken")
+            elif not action_selected:
+                continue
             elif self.tag_id == 77 or self.tag_id == 78 or self.tag_id == 91:
                 rospy.loginfo("Reach Endpoint")
+                reward = self.Q.update(action, self.tag_id)
+                if reward == 1:
+                    self.publish_leds((0.0, 1.0, 0.0, 0.3))
+                else:
+                    self.publish_leds((1.0, 0.0, 0.0, 0.3))
+                self.stop()
                 break
-            elif prev_tag != self.tag_id:
-                rospy.loginfo("Regular")
-                self.publish_leds((1.0, 1.0, 1.0, 1.0))
             if flag == "break":
                 # rospy.loginfo("Exit Control Mode")
                 break
         self.stop()
-        rospy.signal_shutdown("Exiting Control Mode")
 
 
 
 
 if __name__ == '__main__':
     node = LaneControllerNode(node_name='lane_controller_node')
-    node.run()
+    for i in range(10):
+        rospy.loginfo(f"This is round {i}")
+        rospy.loginfo("When ready, Press any key to start ...")
+        node._getch()
+        rospy.loginfo("Press w, a, s, d for moving")
+        node.run()
+        node.Q.save_model(MODEL_PATH, i)
+        rospy.sleep(3)
+    rospy.loginfo(node.Q.Q)
+    with open(MODEL_PATH, 'rb') as f:
+        data = pickle.load(f)
+        print(data)
+    rospy.signal_shutdown("Exiting Control Mode")
     rospy.spin()
