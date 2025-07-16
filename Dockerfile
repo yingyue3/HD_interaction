@@ -40,7 +40,7 @@ ARG REPO_PATH="${CATKIN_WS_DIR}/src/${REPO_NAME}"
 ARG LAUNCH_PATH="${LAUNCH_DIR}/${REPO_NAME}"
 RUN mkdir -p "${REPO_PATH}" "${LAUNCH_PATH}"
 WORKDIR "${REPO_PATH}"
-RUN --mount=type=bind,source=.,target=/test ls -al /test
+# RUN --mount=type=bind,source=.,target=/test ls -al /test
 
 # keep some arguments as environment variables
 ENV DT_MODULE_TYPE="${REPO_NAME}" \

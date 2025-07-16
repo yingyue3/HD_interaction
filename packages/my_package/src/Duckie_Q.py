@@ -18,7 +18,8 @@ from select import select
 
 import numpy as np
 import random
-import pickle
+import csv
+import time
 
 
 from collections import defaultdict
@@ -390,11 +391,10 @@ class LaneControllerNode(DTROS):
             self.publish_twisted(self.velocity, -5)
         elif key == "s":
             self.publish_twisted(-self.velocity, 0)
+        elif key == "\x03" or key == "q":
+            return "break"
         else:
-            if key == "\x03":
-                return "break"
-            else:
-                self.publish_twisted(0,0)      
+            self.publish_twisted(0,0)      
         return None
 
 
@@ -409,7 +409,10 @@ class LaneControllerNode(DTROS):
         while(not rospy.is_shutdown()):
             
             flag = self.keyboard_control()
-            prev_tag = self.tag_id
+            if flag == "break":
+                rospy.loginfo("Exit Control Mode")
+                timing = None
+                break
             self.tag_id = self.detect_tag()
             # rospy.loginfo(self.tag_id)
             if self.tag_id == 35:
@@ -424,6 +427,7 @@ class LaneControllerNode(DTROS):
                     elif action == 2:
                         self.blink_three()
                     rospy.loginfo(f"Action {action} is taken")
+                    timing = time.time()
             elif not action_selected:
                 continue
             elif self.tag_id == 77 or self.tag_id == 78 or self.tag_id == 91:
@@ -435,27 +439,39 @@ class LaneControllerNode(DTROS):
                     self.publish_leds((1.0, 0.0, 0.0, 0.3))
                 self.stop()
                 break
-            if flag == "break":
-                # rospy.loginfo("Exit Control Mode")
-                break
         self.stop()
+        return timing, action
 
 
 
 
 if __name__ == '__main__':
     node = LaneControllerNode(node_name='lane_controller_node')
-    for i in range(10):
+    data_to_save = []
+    for i in range(20):
         rospy.loginfo(f"This is round {i}")
         rospy.loginfo("When ready, Press any key to start ...")
+        start_time = time.time()
         node._getch()
         rospy.loginfo("Press w, a, s, d for moving")
-        node.run()
+        timing, action = node.run()
+        end_time = time.time()
+        if timing == None:
+            i -= 1
+            continue
         node.Q.save_model(MODEL_PATH, i)
         rospy.sleep(3)
+        data = {
+            'Totle Time' : end_time - start_time,
+            'Time from Signal to End' : end_time - timing,
+            'Action Taken': action
+        }
     rospy.loginfo(node.Q.Q)
     with open(MODEL_PATH, 'rb') as f:
         data = pickle.load(f)
         print(data)
+    
+    rospy.loginfo("CSV is ready, press any key if pulled out ...")
+    node._getch()
     rospy.signal_shutdown("Exiting Control Mode")
     rospy.spin()

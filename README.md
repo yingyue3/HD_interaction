@@ -23,3 +23,4 @@ dts devel run -R ROBOT_NAME -L camera-reader
 docker exec -it 70dc0ea2c534 /bin/sh
 
 ### copy from docker
+docker cp de01ba5ba0e5:/code/catkin_ws/src/HD_interaction/dependencies-apt.txt ./data
