@@ -24,8 +24,9 @@ def make_epsilon_greedy_policy(Q, epsilon, nA):
     """
     def policy_fn(observation):
         A = np.ones(nA, dtype=float) * epsilon / nA
-        best_action = np.argmax(Q[observation])
-        A[best_action] += (1.0 - epsilon)
+        best_action = np.flatnonzero(Q[observation] == np.max(Q[observation]))
+        for action in best_action:
+            A[action] += (1.0 - epsilon)/len(best_action)
         return A
     return policy_fn
 
@@ -132,18 +133,19 @@ if __name__ == "__main__":
     Duckiebot = QAgent()
 
     ###### When detect the intersection tagid
-    state = Duckiebot.tagid_to_state(tagid)
+    for i in range(30):
+        state = Duckiebot.tagid_to_state(2000)
 
-    # use function is_terminal to check if it is a terminal state
-    if not Duckiebot.is_terminal(state):
-      # if the tagid shows that the duckiebot is at the intersection point, reset everything to start an episode, and choose an action
-      Duckiebot.reset()
-      action = Duckiebot.select_action()
-    else:
-      # if the tagid shows that the duckiebot is at the terminal state, update the Q-table, and this should return you an reward
-      tagid = random.randint(0,2)
-      reward = Duckiebot.update(action, tagid)
+        Duckiebot.reset()
+        # print(f"starting state: {Duckiebot.start_state}")
+        action = Duckiebot.select_action()
+        tagid = random.randint(0, 2)
+        state = Duckiebot.tagid_to_state(tagid)
+
+        reward = Duckiebot.update(action, tagid)
+        # print(f"action: {action}")
+
 
     # Save the checkpoint using pickle or other serialization method
-    Duckiebot.save_model('checkpoint.pkl')
+    # Duckiebot.save_model('checkpoint.pkl')
     print(Duckiebot.Q)

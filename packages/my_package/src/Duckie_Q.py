@@ -49,8 +49,9 @@ def make_epsilon_greedy_policy(Q, epsilon, nA):
     """
     def policy_fn(observation):
         A = np.ones(nA, dtype=float) * epsilon / nA
-        best_action = np.argmax(Q[observation])
-        A[best_action] += (1.0 - epsilon)
+        best_action = np.flatnonzero(Q[observation] == np.max(Q[observation]))
+        for action in best_action:
+            A[action] += (1.0 - epsilon)/len(best_action)
         return A
     return policy_fn
 

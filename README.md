@@ -17,3 +17,9 @@ dts devel build -f
 
 ### 3. launch the node
 dts devel run -R ROBOT_NAME -L camera-reader
+
+
+### run the docker
+docker exec -it 70dc0ea2c534 /bin/sh
+
+### copy from docker
