@@ -31,7 +31,7 @@ DEBUG = True
 ENGLISH = False
 SAFETY = False
 AUSSIE = False
-MODEL_PATH = "checkpoint-0715-test.pkl"
+MODEL_PATH = "checkpoint-0715-test.csv"
 
 def make_epsilon_greedy_policy(Q, epsilon, nA):
     """
@@ -80,23 +80,24 @@ class QAgent:
         self.start_state = (start_state, 0)
         self.state = self.start_state
         self.action = None
+        self.eplore = False
       
-    def load_model(self, path):
-      with open(path, 'rb') as f:
-        data = pickle.load(f)
-      self.Q = data["q_table"]
-      self.prev_episodes = data["episode"]
-      self.discount_factor = data["epsilon"]
-      print(self.Q)
+    # def load_model(self, path):
+    #   with open(path, 'rb') as f:
+    #     data = pickle.load(f)
+    #   self.Q = data["q_table"]
+    #   self.prev_episodes = data["episode"]
+    #   self.discount_factor = data["epsilon"]
+    #   print(self.Q)
     
-    def save_model(self, path, iteration):
-      checkpoint = {
-        'episode': iteration,
-        'epsilon': self.discount_factor,
-        'q_table': self.Q  # Or model state_dict if using neural networks
-      }
-      with open(path, 'wb') as f:
-        pickle.dump(checkpoint, f)
+    # def save_model(self, path, iteration):
+    #   checkpoint = {
+    #     'episode': iteration,
+    #     'epsilon': self.discount_factor,
+    #     'q_table': self.Q  # Or model state_dict if using neural networks
+    #   }
+    #   with open(path, 'wb') as f:
+    #     pickle.dump(checkpoint, f)
 
 
     def reset_Q(self, n, m):
@@ -138,6 +139,10 @@ class QAgent:
     def select_action(self):
         action_probs = self.policy(self.state)
         action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
+        if action_probs[action] != np.max(action_probs):
+            self.eplore = True
+        else:
+            self.eplore = False
         return action       
     
     def update(self, action, tagid):
@@ -464,12 +469,29 @@ if __name__ == '__main__':
         data = {
             'Totle Time' : end_time - start_time,
             'Time from Signal to End' : end_time - timing,
-            'Action Taken': action
+            'Action Taken': action,
+            'Termination Location': node.Q.state,
+            'Termination Correct': node.Q.start_state,
+            'Trial Number': i,
+            'Q Table': node.Q.Q,
+            'Explore': node.Q.eplore
         }
+        data_to_save.append(data)
+        fieldnames = ['Totle Time', 
+                      'Time from Signal to End', 
+                      'Action Taken', 
+                      'Termination Location', 
+                      'Termination Correct', 
+                      'Trial Number',
+                      'Q Table',
+                      'Explore']
     rospy.loginfo(node.Q.Q)
-    with open(MODEL_PATH, 'rb') as f:
-        data = pickle.load(f)
-        print(data)
+    csv_filename = MODEL_PATH
+
+    with open(csv_filename, mode='w', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(data)
     
     rospy.loginfo("CSV is ready, press any key if pulled out ...")
     node._getch()
