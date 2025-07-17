@@ -453,7 +453,15 @@ class LaneControllerNode(DTROS):
 if __name__ == '__main__':
     node = LaneControllerNode(node_name='lane_controller_node')
     data_to_save = []
-    for i in range(20):
+    fieldnames = ['Totle Time', 
+                    'Time from Signal to End', 
+                    'Action Taken', 
+                    'Termination Location', 
+                    'Termination Correct', 
+                    'Trial Number',
+                    'Q Table',
+                    'Explore']
+    for i in range(5):
         rospy.loginfo(f"This is round {i}")
         rospy.loginfo("When ready, Press any key to start ...")
         start_time = time.time()
@@ -464,7 +472,7 @@ if __name__ == '__main__':
         if timing == None:
             i -= 1
             continue
-        node.Q.save_model(MODEL_PATH, i)
+        # node.Q.save_model(MODEL_PATH, i)
         rospy.sleep(3)
         data = {
             'Totle Time' : end_time - start_time,
@@ -477,21 +485,13 @@ if __name__ == '__main__':
             'Explore': node.Q.eplore
         }
         data_to_save.append(data)
-        fieldnames = ['Totle Time', 
-                      'Time from Signal to End', 
-                      'Action Taken', 
-                      'Termination Location', 
-                      'Termination Correct', 
-                      'Trial Number',
-                      'Q Table',
-                      'Explore']
     rospy.loginfo(node.Q.Q)
     csv_filename = MODEL_PATH
 
     with open(csv_filename, mode='w', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(data)
+        writer.writerows(data_to_save)
     
     rospy.loginfo("CSV is ready, press any key if pulled out ...")
     node._getch()
